@@ -29,6 +29,7 @@ filegroup(
         ":clang2graph-10",
         ":graph2dot",
         ":graph2json",
+        ":llvm2graph-13",
         ":llvm2graph-10",
         ":llvm2graph-3.8",
         ":llvm2graph-6",
@@ -40,6 +41,7 @@ filegroup(
     ] + select({
         "@llvm//:darwin": [],
         "//conditions:default": [
+            ":libLLVMPolly-13.0.0",
             ":libLLVMPolly-10.0.0",
             ":libLLVMPolly-6.0.0",
         ],
@@ -66,6 +68,17 @@ genrule(
     ],
     outs = ["libLLVMPolly.so.10.0.0"],
     cmd = "cp $$(dirname $(location @clang-llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04//:clang))/../lib/LLVMPolly.so $@",
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "libLLVMPolly-13.0.0",
+    srcs = [
+        "@clang-llvm-13.0.0-x86_64-linux-gnu-ubuntu-20.04//:all_files",
+        "@clang-llvm-13.0.0-x86_64-linux-gnu-ubuntu-20.04//:clang",
+    ],
+    outs = ["libLLVMPolly.so.13.0.0"],
+    cmd = "cp $$(dirname $(location @clang-llvm-13.0.0-x86_64-linux-gnu-ubuntu-20.04//:clang))/../lib/LLVMPolly.so $@",
     visibility = ["//visibility:public"],
 )
 
@@ -273,6 +286,42 @@ cc_binary(
         "@labm8//labm8/cpp:statusor",
         "@labm8//labm8/cpp:strutil",
         "@llvm//10.0.0",
+    ],
+)
+
+genrule(
+    name = "llvm2graph-13-bin",
+    srcs = [":llvm2graph-13-prelinked"],
+    outs = ["llvm2graph-13"],
+    cmd = select({
+        "@llvm//:darwin": (
+            "cp $(location :llvm2graph-13-prelinked) $@"
+        ),
+        "//conditions:default": (
+            "cp $(location :llvm2graph-13-prelinked) $@ && " +
+            "chmod 666 $@ && " +
+            "patchelf --set-rpath '$$ORIGIN' $@ && " +
+            "patchelf --replace-needed libLLVMPolly.so libLLVMPolly.so.13.0.0 $@ && " +
+            "chmod 555 $@"
+        ),
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "llvm2graph-13-prelinked",
+    srcs = ["llvm2graph.cc"],
+    copts = ["-std=c++14"],
+    deps = [
+        "//programl:version_header",
+        "//programl/ir/llvm:llvm-13",
+        "//programl/proto:programl_cc",
+        "//programl/util:stdout_fmt",
+        "@labm8//labm8/cpp:app",
+        "@labm8//labm8/cpp:status",
+        "@labm8//labm8/cpp:statusor",
+        "@labm8//labm8/cpp:strutil",
+        "@llvm//13.0.0",
     ],
 )
 

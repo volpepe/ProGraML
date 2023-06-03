@@ -475,7 +475,7 @@ labm8::StatusOr<ProgramGraph> ProgramGraphBuilder::Build(const ::llvm::Module& m
 
   for (const ::llvm::Function& function : module) {
     // Create the function message.
-    Function* functionMessage = AddFunction(function.getName(), moduleMessage);
+    Function* functionMessage = AddFunction(function.getName().str(), moduleMessage);
 
 #if PROGRAML_LLVM_VERSION_MAJOR > 6
     // Add profiling information, if available.
