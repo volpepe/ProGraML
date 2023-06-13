@@ -268,6 +268,7 @@ def from_clang(
         try:
             stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as e:
+            process.kill()
             raise TimeoutError(str(e)) from e
 
         return _graph_from_subprocess(process, stdout, stderr)
