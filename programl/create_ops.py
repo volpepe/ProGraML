@@ -168,6 +168,7 @@ def from_cpp(
         try:
             stdout, stderr = process.communicate(src.encode("utf-8"), timeout=timeout)
         except subprocess.TimeoutExpired as e:
+            process.kill()
             raise TimeoutError(str(e)) from e
 
         return _graph_from_subprocess(process, stdout, stderr)
@@ -357,6 +358,7 @@ def from_llvm_ir(
         try:
             stdout, stderr = process.communicate(ir.encode("utf-8"), timeout=timeout)
         except subprocess.TimeoutExpired as e:
+            process.kill()
             raise TimeoutError(str(e)) from e
 
         return _graph_from_subprocess(process, stdout, stderr)
@@ -418,6 +420,7 @@ def from_xla_hlo_proto(
                 hlo.SerializeToString(), timeout=timeout
             )
         except subprocess.TimeoutExpired as e:
+            process.kill()
             raise TimeoutError(str(e)) from e
 
         return _graph_from_subprocess(process, stdout, stderr)
