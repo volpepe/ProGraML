@@ -45,11 +45,6 @@ Graph Transform Ops
 
 .. currentmodule:: programl
 
-DGL
-~~~
-
-.. autofunction:: to_dgl
-
 NetworkX
 ~~~~~~~~
 

@@ -20,9 +20,7 @@ import json
 import subprocess
 from typing import Any, Dict, Iterable, Optional, Union
 
-import dgl
 import networkx as nx
-from dgl.heterograph import DGLHeteroGraph
 from networkx.readwrite import json_graph as nx_json
 
 from programl.exceptions import GraphTransformError
@@ -161,57 +159,6 @@ def to_networkx(
         executor,
         chunksize,
     )
-
-
-def to_dgl(
-    graphs: Union[ProgramGraph, Iterable[ProgramGraph]],
-    timeout: int = 300,
-    executor: Optional[ExecutorLike] = None,
-    chunksize: Optional[int] = None,
-) -> Union[DGLHeteroGraph, Iterable[DGLHeteroGraph]]:
-    """Convert one or more Program Graphs to `DGLGraphs
-    <https://docs.dgl.ai/en/latest/api/python/dgl.DGLGraph.html#dgl.DGLGraph>`_.
-
-    :param graphs: A Program Graph, or a sequence of Program Graphs.
-
-    :param timeout: The maximum number of seconds to wait for an individual
-        graph conversion before raising an error. If multiple inputs are
-        provided, this timeout is per-input.
-
-    :param executor: An executor object, with method :code:`submit(callable,
-        *args, **kwargs)` and returning a Future-like object with methods
-        :code:`done() -> bool` and :code:`result() -> float`. The executor role
-        is to dispatch the execution of the jobs locally/on a cluster/with
-        multithreading depending on the implementation. Eg:
-        :code:`concurrent.futures.ThreadPoolExecutor`. Defaults to single
-        threaded execution. This is only used when multiple inputs are given.
-
-    :param chunksize: The number of inputs to read and process at a time. A
-        larger chunksize improves parallelism but increases memory consumption
-        as more inputs must be stored in memory. This is only used when multiple
-        inputs are given.
-
-    :return: If a single input is provided, return a single
-        :code:`dgl.DGLGraph`. Else returns an iterable sequence of
-        :code:`dgl.DGLGraph` instances.
-
-    :raises GraphTransformError: If graph conversion fails.
-
-    :raises TimeoutError: If the specified timeout is reached.
-    """
-
-    def _run_one(nx_graph):
-        return dgl.DGLGraph(nx_graph)
-
-    if isinstance(graphs, ProgramGraph):
-        return _run_one(to_networkx(graphs))
-    return execute(
-        _run_one,
-        to_networkx(graphs, timeout=timeout, executor=executor, chunksize=chunksize),
-        executor,
-        chunksize,
-    )
-
 
 def to_dot(
     graphs: Union[ProgramGraph, Iterable[ProgramGraph]],

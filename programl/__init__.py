@@ -52,7 +52,7 @@ from programl.serialize_ops import (
     to_bytes,
     to_string,
 )
-from programl.transform_ops import to_dgl, to_dot, to_json, to_networkx
+from programl.transform_ops import to_dot, to_json, to_networkx
 from programl.util.py.runfiles_path import runfiles_path
 from programl.version import PROGRAML_VERSION
 
@@ -80,7 +80,6 @@ __all__ = [
     "ProgramGraph",
     "save_graphs",
     "to_bytes",
-    "to_dgl",
     "to_dot",
     "to_json",
     "to_networkx",
