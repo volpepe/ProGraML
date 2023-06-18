@@ -45,7 +45,7 @@ The key features are:
 
 1. **Simple:** Everything is available through a `pip install`, no compilation
    required. Supports several programming languages (*C, C++, LLVM-IR, XLA*) and
-   several graph formats (*NetworkX, DGL, Graphviz, JSON*) out of the box.
+   several graph formats (*NetworkX, Graphviz, JSON*) out of the box.
 
 2. **Expressive:** Captures every control, data, and call relation across entire
    programs. The representation is independent of the source language. Features
