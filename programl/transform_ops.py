@@ -18,11 +18,13 @@ another representation.
 """
 import json
 import subprocess
+import torch
 from typing import Any, Dict, Iterable, Optional, Union
 
 import dgl
 import networkx as nx
 from dgl.heterograph import DGLHeteroGraph
+from torch_geometric.data import HeteroData
 from networkx.readwrite import json_graph as nx_json
 
 from programl.exceptions import GraphTransformError
@@ -257,4 +259,60 @@ def to_dot(
 
     if isinstance(graphs, ProgramGraph):
         return _run_one(graphs)
+    return execute(_run_one, graphs, executor, chunksize)
+
+def to_pyg(
+    graphs: Union[ProgramGraph, Iterable[ProgramGraph]],
+    timeout: int = 300,
+    vocabulary: Dict[str, int] = None,
+    executor: Optional[ExecutorLike] = None,
+    chunksize: Optional[int] = None,
+) -> Union[HeteroData, Iterable[HeteroData]]:
+
+    def _run_one(graph: ProgramGraph) -> HeteroData:
+        # 3 lists, one per edge type
+        # (control, data and call edges)
+        adjacencies = [[], [], []]
+        edge_positions = [[], [], []]
+
+        # Create the adjacency lists
+        for edge in graph.edge:
+            adjacencies[edge.flow].append([edge.source, edge.target])
+            edge_positions[edge.flow].append(edge.position)
+
+        vocab_ids = None
+        if vocabulary is not None:
+            vocab_ids = [
+                vocabulary.get(node.text, len(vocabulary.keys()))
+                for node in graph.node
+            ]
+
+        # Pass from list to tensor
+        adjacencies = [torch.tensor(adj_flow_type) for adj_flow_type in adjacencies]
+        edge_positions = [torch.tensor(edge_pos_flow_type) for edge_pos_flow_type in edge_positions]
+
+        if vocabulary is not None:
+            vocab_ids = torch.tensor(vocab_ids)
+
+        # Create the graph structure
+        hetero_graph = HeteroData()
+
+        # Vocabulary index of each node
+        hetero_graph['nodes'].x = vocab_ids
+
+        # Add the adjacency lists
+        hetero_graph['nodes', 'control', 'nodes'].edge_index = adjacencies[0].t().contiguous()
+        hetero_graph['nodes', 'data', 'nodes'].edge_index = adjacencies[1].t().contiguous()
+        hetero_graph['nodes', 'call', 'nodes'].edge_index = adjacencies[2].t().contiguous()
+
+        # Add the edge positions
+        hetero_graph['nodes', 'control', 'nodes'].edge_attr = edge_positions[0]
+        hetero_graph['nodes', 'data', 'nodes'].edge_attr = edge_positions[1]
+        hetero_graph['nodes', 'call', 'nodes'].edge_attr = edge_positions[2]
+
+        return hetero_graph
+
+    if isinstance(graphs, ProgramGraph):
+        return _run_one(graphs)
+
     return execute(_run_one, graphs, executor, chunksize)
