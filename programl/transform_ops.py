@@ -268,6 +268,34 @@ def to_pyg(
     executor: Optional[ExecutorLike] = None,
     chunksize: Optional[int] = None,
 ) -> Union[HeteroData, Iterable[HeteroData]]:
+    """Convert one or more Program Graphs to Pytorch-Geometrics's HeteroData.
+    This graphs can be used as input for any deep learning model built with
+    Pytorch-Geometric:
+
+    https://pytorch-geometric.readthedocs.io/en/latest/tutorial/heterogeneous.html
+
+    :param graphs: A Program Graph, or a sequence of Program Graphs.
+
+    :param timeout: The maximum number of seconds to wait for an individual
+        graph conversion before raising an error. If multiple inputs are
+        provided, this timeout is per-input.
+
+    :param executor: An executor object, with method :code:`submit(callable,
+        *args, **kwargs)` and returning a Future-like object with methods
+        :code:`done() -> bool` and :code:`result() -> float`. The executor role
+        is to dispatch the execution of the jobs locally/on a cluster/with
+        multithreading depending on the implementation. Eg:
+        :code:`concurrent.futures.ThreadPoolExecutor`. Defaults to single
+        threaded execution. This is only used when multiple inputs are given.
+
+    :param chunksize: The number of inputs to read and process at a time. A
+        larger chunksize improves parallelism but increases memory consumption
+        as more inputs must be stored in memory. This is only used when multiple
+        inputs are given.
+
+    :return: A HeteroData graph when a single input is provided, else an
+        iterable sequence of HeteroData graphs.
+    """
 
     def _run_one(graph: ProgramGraph) -> HeteroData:
         # 3 lists, one per edge type
