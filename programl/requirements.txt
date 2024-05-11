@@ -5,4 +5,5 @@ networkx>=2.4
 numpy>=1.19.3
 protobuf>=3.13.0,<4.21.0
 torch>=1.8.0
+torch_geometric==2.4.0
 tqdm>=4.38.0
