@@ -1,0 +1,82 @@
+
+from concurrent.futures.thread import ThreadPoolExecutor
+
+import networkx as nx
+import pytest
+
+import programl as pg
+from torch_geometric.data import HeteroData
+from tests.test_main import main
+
+pytest_plugins = ["tests.plugins.llvm_program_graph"]
+
+
+@pytest.fixture(scope="session")
+def graph() -> pg.ProgramGraph:
+    return pg.from_cpp("int A() { return 0; }")
+
+def assert_equal_graphs(
+    graph1: HeteroData,
+    graph2: HeteroData
+):
+    assert graph1['nodes']['text'] == graph2['nodes']['text']
+
+    assert graph1['nodes', 'control', 'nodes'].edge_index.equal(graph2['nodes', 'control', 'nodes'].edge_index)
+    assert graph1['nodes', 'data', 'nodes'].edge_index.equal(graph2['nodes', 'data', 'nodes'].edge_index)
+    assert graph1['nodes', 'call', 'nodes'].edge_index.equal(graph2['nodes', 'call', 'nodes'].edge_index)
+    assert graph1['nodes', 'type', 'nodes'].edge_index.equal(graph2['nodes', 'type', 'nodes'].edge_index)
+
+def test_to_pyg_simple_graph(graph: pg.ProgramGraph):
+    graphs = list(pg.to_pyg([graph]))
+    assert len(graphs) == 1
+    assert isinstance(graphs[0], HeteroData)
+
+
+def test_to_pyg_simple_graph_single_input(graph: pg.ProgramGraph):
+    pyg_graph = pg.to_pyg(graph)
+    assert isinstance(pyg_graph, HeteroData)
+
+
+def test_to_pyg_two_inputs(graph: pg.ProgramGraph):
+    graphs = list(pg.to_pyg([graph, graph]))
+    assert len(graphs) == 2
+    assert_equal_graphs(graphs[0], graphs[1])
+
+def test_to_pyg_generator(graph: pg.ProgramGraph):
+    graphs = list(pg.to_pyg((graph for _ in range(10)), chunksize=3))
+    assert len(graphs) == 10
+    for x in graphs[1:]:
+        assert_equal_graphs(graphs[0], x)
+
+
+def test_to_pyg_generator_parallel_executor(graph: pg.ProgramGraph):
+    with ThreadPoolExecutor() as executor:
+        graphs = list(
+            pg.to_pyg((graph for _ in range(10)), chunksize=3, executor=executor)
+        )
+    assert len(graphs) == 10
+    for x in graphs[1:]:
+        assert_equal_graphs(graphs[0], x)
+
+
+def test_to_pyg_smoke_test(llvm_program_graph: pg.ProgramGraph):
+    graphs = list(pg.to_pyg([llvm_program_graph]))
+
+    num_nodes = len(graphs[0]['nodes']['text'])
+    num_control_edges = graphs[0]['nodes', 'control', 'nodes'].edge_index.size(1)
+    num_data_edges = graphs[0]['nodes', 'data', 'nodes'].edge_index.size(1)
+    num_call_edges = graphs[0]['nodes', 'call', 'nodes'].edge_index.size(1)
+    num_type_edges = graphs[0]['nodes', 'type', 'nodes'].edge_index.size(1)
+    num_edges = num_control_edges + num_data_edges + num_call_edges + num_type_edges
+
+    assert len(graphs) == 1
+    assert isinstance(graphs[0], HeteroData)
+    assert num_nodes == len(llvm_program_graph.node)
+    assert num_edges <= len(llvm_program_graph.edge)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
