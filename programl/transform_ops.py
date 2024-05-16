@@ -265,7 +265,7 @@ def to_dot(
 def to_pyg(
     graphs: Union[ProgramGraph, Iterable[ProgramGraph]],
     timeout: int = 300,
-    vocabulary: Dict[str, int] = None,
+    vocabulary: Optional[Dict[str, int]] = None,
     executor: Optional[ExecutorLike] = None,
     chunksize: Optional[int] = None,
 ) -> Union[HeteroData, Iterable[HeteroData]]:
@@ -280,6 +280,10 @@ def to_pyg(
     :param timeout: The maximum number of seconds to wait for an individual
         graph conversion before raising an error. If multiple inputs are
         provided, this timeout is per-input.
+
+    :param vocabulary: A dictionary containing ProGraML's vocabulary, where the
+        keys are the text attribute of the nodes and the values their respective
+        indexes.
 
     :param executor: An executor object, with method :code:`submit(callable,
         *args, **kwargs)` and returning a Future-like object with methods
@@ -299,16 +303,17 @@ def to_pyg(
     """
 
     def _run_one(graph: ProgramGraph) -> HeteroData:
-        # 3 lists, one per edge type
-        # (control, data and call edges)
+        # 4 lists, one per edge type
+        # (control, data, call and type edges)
         adjacencies = [[], [], [], []]
         edge_positions = [[], [], [], []]
 
-        # Create the adjacency lists
+        # Create the adjacency lists and the positions
         for edge in graph.edge:
             adjacencies[edge.flow].append([edge.source, edge.target])
             edge_positions[edge.flow].append(edge.position)
 
+        # Store the text attributes
         node_text = [node.text for node in graph.node]
 
         vocab_ids = None
