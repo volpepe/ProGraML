@@ -261,6 +261,7 @@ def to_dot(
         return _run_one(graphs)
     return execute(_run_one, graphs, executor, chunksize)
 
+
 def to_pyg(
     graphs: Union[ProgramGraph, Iterable[ProgramGraph]],
     timeout: int = 300,
@@ -300,13 +301,15 @@ def to_pyg(
     def _run_one(graph: ProgramGraph) -> HeteroData:
         # 3 lists, one per edge type
         # (control, data and call edges)
-        adjacencies = [[], [], []]
-        edge_positions = [[], [], []]
+        adjacencies = [[], [], [], []]
+        edge_positions = [[], [], [], []]
 
         # Create the adjacency lists
         for edge in graph.edge:
             adjacencies[edge.flow].append([edge.source, edge.target])
             edge_positions[edge.flow].append(edge.position)
+
+        node_text = [node.text for node in graph.node]
 
         vocab_ids = None
         if vocabulary is not None:
@@ -326,17 +329,28 @@ def to_pyg(
         hetero_graph = HeteroData()
 
         # Vocabulary index of each node
+        hetero_graph['nodes']['text'] = node_text
         hetero_graph['nodes'].x = vocab_ids
 
         # Add the adjacency lists
-        hetero_graph['nodes', 'control', 'nodes'].edge_index = adjacencies[0].t().contiguous()
-        hetero_graph['nodes', 'data', 'nodes'].edge_index = adjacencies[1].t().contiguous()
-        hetero_graph['nodes', 'call', 'nodes'].edge_index = adjacencies[2].t().contiguous()
+        hetero_graph['nodes', 'control', 'nodes'].edge_index = (
+            adjacencies[0].t().contiguous() if adjacencies[0].nelement() > 0 else torch.tensor([[], []])
+        )
+        hetero_graph['nodes', 'data', 'nodes'].edge_index = (
+            adjacencies[1].t().contiguous() if adjacencies[1].nelement() > 0 else torch.tensor([[], []])
+        )
+        hetero_graph['nodes', 'call', 'nodes'].edge_index = (
+            adjacencies[2].t().contiguous() if adjacencies[2].nelement() > 0 else torch.tensor([[], []])
+        )
+        hetero_graph['nodes', 'type', 'nodes'].edge_index = (
+            adjacencies[3].t().contiguous() if adjacencies[3].nelement() > 0 else torch.tensor([[], []])
+        )
 
         # Add the edge positions
         hetero_graph['nodes', 'control', 'nodes'].edge_attr = edge_positions[0]
         hetero_graph['nodes', 'data', 'nodes'].edge_attr = edge_positions[1]
         hetero_graph['nodes', 'call', 'nodes'].edge_attr = edge_positions[2]
+        hetero_graph['nodes', 'type', 'nodes'].edge_attr = edge_positions[3]
 
         return hetero_graph
 
