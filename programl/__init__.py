@@ -52,7 +52,7 @@ from programl.serialize_ops import (
     to_bytes,
     to_string,
 )
-from programl.transform_ops import to_dgl, to_dot, to_json, to_networkx
+from programl.transform_ops import to_dgl, to_dot, to_json, to_networkx, to_pyg
 from programl.util.py.runfiles_path import runfiles_path
 from programl.version import PROGRAML_VERSION
 
@@ -84,6 +84,7 @@ __all__ = [
     "to_dot",
     "to_json",
     "to_networkx",
+    "to_pyg",
     "to_string",
     "UnsupportedCompiler",
 ]
