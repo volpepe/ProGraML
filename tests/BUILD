@@ -134,3 +134,14 @@ py_test(
         "//tests/plugins",
     ],
 )
+
+py_test(
+    name = "to_pyg_test",
+    srcs = ["to_pyg_test.py"],
+    shard_count = 8,
+    deps = [
+        "//programl",
+        "//tests:test_main",
+        "//tests/plugins",
+    ],
+)
