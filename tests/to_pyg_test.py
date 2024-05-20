@@ -29,39 +29,94 @@ pytest_plugins = ["tests.plugins.llvm_program_graph"]
 def graph() -> pg.ProgramGraph:
     return pg.from_cpp("int A() { return 0; }")
 
+@pytest.fixture(scope="session")
+def graph2() -> pg.ProgramGraph:
+    return pg.from_cpp("int B() { return 1; }")
+
+@pytest.fixture(scope="session")
+def graph3() -> pg.ProgramGraph:
+    return pg.from_cpp("int B(int x) { return x + 1; }")
+
 def assert_equal_graphs(
     graph1: HeteroData,
-    graph2: HeteroData
+    graph2: HeteroData,
+    equality: bool = True
 ):
-    assert graph1['nodes']['text'] == graph2['nodes']['text']
+    if equality:
+        assert graph1['nodes']['full_text'] == graph2['nodes']['full_text']
 
-    assert graph1['nodes', 'control', 'nodes'].edge_index.equal(graph2['nodes', 'control', 'nodes'].edge_index)
-    assert graph1['nodes', 'data', 'nodes'].edge_index.equal(graph2['nodes', 'data', 'nodes'].edge_index)
-    assert graph1['nodes', 'call', 'nodes'].edge_index.equal(graph2['nodes', 'call', 'nodes'].edge_index)
-    assert graph1['nodes', 'type', 'nodes'].edge_index.equal(graph2['nodes', 'type', 'nodes'].edge_index)
+        assert graph1['nodes', 'control', 'nodes'].edge_index.equal(graph2['nodes', 'control', 'nodes'].edge_index)
+        assert graph1['nodes', 'data', 'nodes'].edge_index.equal(graph2['nodes', 'data', 'nodes'].edge_index)
+        assert graph1['nodes', 'call', 'nodes'].edge_index.equal(graph2['nodes', 'call', 'nodes'].edge_index)
+        assert graph1['nodes', 'type', 'nodes'].edge_index.equal(graph2['nodes', 'type', 'nodes'].edge_index)
+
+    else:
+        text_different = graph1['nodes']['full_text'] != graph2['nodes']['full_text']
+
+        control_edges_different = not graph1['nodes', 'control', 'nodes'].edge_index.equal(
+            graph2['nodes', 'control', 'nodes'].edge_index
+        )
+        data_edges_different = not graph1['nodes', 'data', 'nodes'].edge_index.equal(
+            graph2['nodes', 'data', 'nodes'].edge_index
+        )
+        call_edges_different = not graph1['nodes', 'call', 'nodes'].edge_index.equal(
+            graph2['nodes', 'call', 'nodes'].edge_index
+        )
+        type_edges_different = not graph1['nodes', 'type', 'nodes'].edge_index.equal(
+            graph2['nodes', 'type', 'nodes'].edge_index
+        )
+
+        assert (
+            text_different
+            or control_edges_different
+            or data_edges_different
+            or call_edges_different
+            or type_edges_different
+        )
 
 def test_to_pyg_simple_graph(graph: pg.ProgramGraph):
     graphs = list(pg.to_pyg([graph]))
     assert len(graphs) == 1
     assert isinstance(graphs[0], HeteroData)
 
-
 def test_to_pyg_simple_graph_single_input(graph: pg.ProgramGraph):
     pyg_graph = pg.to_pyg(graph)
     assert isinstance(pyg_graph, HeteroData)
 
+def test_to_pyg_different_two_different_inputs(
+    graph: pg.ProgramGraph,
+    graph2: pg.ProgramGraph,
+):
+    pyg_graph = pg.to_pyg(graph)
+    pyg_graph2 = pg.to_pyg(graph2)
+
+    #  Ensure that the graphs are different
+    assert_equal_graphs(pyg_graph, pyg_graph2, equality=False)
+
+def test_to_pyg_different_inputs(
+    graph: pg.ProgramGraph,
+    graph2: pg.ProgramGraph,
+    graph3: pg.ProgramGraph
+):
+    pyg_graph = pg.to_pyg(graph)
+    pyg_graph2 = pg.to_pyg(graph2)
+    pyg_graph3 = pg.to_pyg(graph3)
+
+    #  Ensure that the graphs are different
+    assert_equal_graphs(pyg_graph, pyg_graph2, equality=False)
+    assert_equal_graphs(pyg_graph, pyg_graph3, equality=False)
+    assert_equal_graphs(pyg_graph2, pyg_graph3, equality=False)
 
 def test_to_pyg_two_inputs(graph: pg.ProgramGraph):
     graphs = list(pg.to_pyg([graph, graph]))
     assert len(graphs) == 2
-    assert_equal_graphs(graphs[0], graphs[1])
+    assert_equal_graphs(graphs[0], graphs[1], equality=True)
 
 def test_to_pyg_generator(graph: pg.ProgramGraph):
     graphs = list(pg.to_pyg((graph for _ in range(10)), chunksize=3))
     assert len(graphs) == 10
     for x in graphs[1:]:
-        assert_equal_graphs(graphs[0], x)
-
+        assert_equal_graphs(graphs[0], x, equality=True)
 
 def test_to_pyg_generator_parallel_executor(graph: pg.ProgramGraph):
     with ThreadPoolExecutor() as executor:
@@ -70,7 +125,7 @@ def test_to_pyg_generator_parallel_executor(graph: pg.ProgramGraph):
         )
     assert len(graphs) == 10
     for x in graphs[1:]:
-        assert_equal_graphs(graphs[0], x)
+        assert_equal_graphs(graphs[0], x, equality=True)
 
 
 def test_to_pyg_smoke_test(llvm_program_graph: pg.ProgramGraph):
@@ -91,6 +146,3 @@ def test_to_pyg_smoke_test(llvm_program_graph: pg.ProgramGraph):
 
 if __name__ == "__main__":
     main()
-
-
-
