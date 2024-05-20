@@ -314,7 +314,22 @@ def to_pyg(
             edge_positions[edge.flow].append(edge.position)
 
         # Store the text attributes
-        node_text = [node.text for node in graph.node]
+        node_text_list = []
+        node_full_text_list = []
+
+        # Store the text and full text attributes
+        for node in graph.node:
+            node_text = node_full_text = node.text
+
+            if (
+                node.features
+                and node.features.feature["full_text"].bytes_list.value
+            ):
+                node_full_text = node.features.feature["full_text"].bytes_list.value[0]
+
+            node_text_list.append(node_text)
+            node_full_text_list.append(node_full_text)
+
 
         vocab_ids = None
         if vocabulary is not None:
@@ -334,7 +349,8 @@ def to_pyg(
         hetero_graph = HeteroData()
 
         # Vocabulary index of each node
-        hetero_graph['nodes']['text'] = node_text
+        hetero_graph['nodes']['text'] = node_text_list
+        hetero_graph['nodes']['full_text'] = node_full_text_list
         hetero_graph['nodes'].x = vocab_ids
 
         # Add the adjacency lists
