@@ -18,11 +18,13 @@ another representation.
 """
 import json
 import subprocess
+import torch
 from typing import Any, Dict, Iterable, Optional, Union
 
 import dgl
 import networkx as nx
 from dgl.heterograph import DGLHeteroGraph
+from torch_geometric.data import HeteroData
 from networkx.readwrite import json_graph as nx_json
 
 from programl.exceptions import GraphTransformError
@@ -257,4 +259,123 @@ def to_dot(
 
     if isinstance(graphs, ProgramGraph):
         return _run_one(graphs)
+    return execute(_run_one, graphs, executor, chunksize)
+
+
+def to_pyg(
+    graphs: Union[ProgramGraph, Iterable[ProgramGraph]],
+    timeout: int = 300,
+    vocabulary: Optional[Dict[str, int]] = None,
+    executor: Optional[ExecutorLike] = None,
+    chunksize: Optional[int] = None,
+) -> Union[HeteroData, Iterable[HeteroData]]:
+    """Convert one or more Program Graphs to Pytorch-Geometrics's HeteroData.
+    This graphs can be used as input for any deep learning model built with
+    Pytorch-Geometric:
+
+    https://pytorch-geometric.readthedocs.io/en/latest/tutorial/heterogeneous.html
+
+    :param graphs: A Program Graph, or a sequence of Program Graphs.
+
+    :param timeout: The maximum number of seconds to wait for an individual
+        graph conversion before raising an error. If multiple inputs are
+        provided, this timeout is per-input.
+
+    :param vocabulary: A dictionary containing ProGraML's vocabulary, where the
+        keys are the text attribute of the nodes and the values their respective
+        indexes.
+
+    :param executor: An executor object, with method :code:`submit(callable,
+        *args, **kwargs)` and returning a Future-like object with methods
+        :code:`done() -> bool` and :code:`result() -> float`. The executor role
+        is to dispatch the execution of the jobs locally/on a cluster/with
+        multithreading depending on the implementation. Eg:
+        :code:`concurrent.futures.ThreadPoolExecutor`. Defaults to single
+        threaded execution. This is only used when multiple inputs are given.
+
+    :param chunksize: The number of inputs to read and process at a time. A
+        larger chunksize improves parallelism but increases memory consumption
+        as more inputs must be stored in memory. This is only used when multiple
+        inputs are given.
+
+    :return: A HeteroData graph when a single input is provided, else an
+        iterable sequence of HeteroData graphs.
+    """
+
+    def _run_one(graph: ProgramGraph) -> HeteroData:
+        # 4 lists, one per edge type
+        # (control, data, call and type edges)
+        adjacencies = [[], [], [], []]
+        edge_positions = [[], [], [], []]
+
+        # Create the adjacency lists and the positions
+        for edge in graph.edge:
+            adjacencies[edge.flow].append([edge.source, edge.target])
+            edge_positions[edge.flow].append(edge.position)
+
+        # Store the text attributes
+        node_text_list = []
+        node_full_text_list = []
+
+        # Store the text and full text attributes
+        for node in graph.node:
+            node_text = node_full_text = node.text
+
+            if (
+                node.features
+                and node.features.feature["full_text"].bytes_list.value
+            ):
+                node_full_text = node.features.feature["full_text"].bytes_list.value[0]
+
+            node_text_list.append(node_text)
+            node_full_text_list.append(node_full_text)
+
+
+        vocab_ids = None
+        if vocabulary is not None:
+            vocab_ids = [
+                vocabulary.get(node.text, len(vocabulary.keys()))
+                for node in graph.node
+            ]
+
+        # Pass from list to tensor
+        adjacencies = [torch.tensor(adj_flow_type) for adj_flow_type in adjacencies]
+        edge_positions = [torch.tensor(edge_pos_flow_type) for edge_pos_flow_type in edge_positions]
+
+        if vocabulary is not None:
+            vocab_ids = torch.tensor(vocab_ids)
+
+        # Create the graph structure
+        hetero_graph = HeteroData()
+
+        # Vocabulary index of each node
+        hetero_graph['nodes']['text'] = node_text_list
+        hetero_graph['nodes']['full_text'] = node_full_text_list
+        hetero_graph['nodes'].x = vocab_ids
+
+        # Add the adjacency lists
+        hetero_graph['nodes', 'control', 'nodes'].edge_index = (
+            adjacencies[0].t().contiguous() if adjacencies[0].nelement() > 0 else torch.tensor([[], []])
+        )
+        hetero_graph['nodes', 'data', 'nodes'].edge_index = (
+            adjacencies[1].t().contiguous() if adjacencies[1].nelement() > 0 else torch.tensor([[], []])
+        )
+        hetero_graph['nodes', 'call', 'nodes'].edge_index = (
+            adjacencies[2].t().contiguous() if adjacencies[2].nelement() > 0 else torch.tensor([[], []])
+        )
+        hetero_graph['nodes', 'type', 'nodes'].edge_index = (
+            adjacencies[3].t().contiguous() if adjacencies[3].nelement() > 0 else torch.tensor([[], []])
+        )
+
+        # Add the edge positions
+        hetero_graph['nodes', 'control', 'nodes'].edge_attr = edge_positions[0]
+        hetero_graph['nodes', 'data', 'nodes'].edge_attr = edge_positions[1]
+        hetero_graph['nodes', 'call', 'nodes'].edge_attr = edge_positions[2]
+        hetero_graph['nodes', 'type', 'nodes'].edge_attr = edge_positions[3]
+
+        return hetero_graph
+
+    if isinstance(graphs, ProgramGraph):
+        return _run_one(graphs)
+
     return execute(_run_one, graphs, executor, chunksize)
